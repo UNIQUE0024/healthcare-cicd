@@ -39,7 +39,34 @@ pipeline {
                 sh 'mvn package -DskipTests'
             }
         }
-        
+        stage('Upload to Nexus') {
+            steps {
+                echo '
+📤
+ Uploading artifact to Nexus...'
+                script {
+nexusArtifactUploader(
+                        nexusVersion: 'nexus3',
+                        protocol: 'http',
+                        nexusUrl: '192.168.0.X:8081',
+                        groupId: 'com.healthcare',
+                        version: "${env.BUILD_NUMBER}",
+                        repository: 'maven-releases',
+                        credentialsId: 'nexus-credentials',
+                        artifacts: [
+[
+                                artifactId: 'healthcare',
+                                classifier: '',
+                                file: 
+'target/healthcare.war',
+                                type: 
+'war'
+]
+]
+)
+}
+}
+}
         stage('Deploy to Tomcat') {
             steps {
                 echo '🚀 Deploying to Tomcat server...'
