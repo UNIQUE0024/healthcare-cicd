@@ -48,7 +48,7 @@ pipeline {
 nexusArtifactUploader(
                         nexusVersion: 'nexus3',
                         protocol: 'http',
-                        nexusUrl: '192.168.0.X:8081',
+                        nexusUrl: '192.168.0.17:8081',
                         groupId: 'com.healthcare',
                         version: "${env.BUILD_NUMBER}",
                         repository: 'maven-releases',
