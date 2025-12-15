@@ -7,7 +7,7 @@ pipeline {
     }
     
     environment {
-        TOMCAT_URL = 'http://192.168.0.21:8080'  // Replace with actual Node 4 IP
+        TOMCAT_URL = 'http://192.168.0.16:8080'  // Replace with actual Node 4 IP
         APP_NAME = 'healthcare'
     }
     
