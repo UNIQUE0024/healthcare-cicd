@@ -8,10 +8,10 @@ pipeline {
     
     environment {
         // ⚠️ CHANGE THESE IP ADDRESSES!
-        SONAR_HOST = 'http://192.168.0.XX:9000'  // Replace XX with SonarQube node IP
-        SONAR_TOKEN = credentials('sonarqube-token')      // Must match credential ID in Jenkins
-        NEXUS_URL = 'http://192.168.0.YY:8081'   // Replace YY with Nexus node IP
-        TOMCAT_URL = 'http://192.168.0.ZZ:8080'  // Replace ZZ with Tomcat node IP
+        SONAR_HOST = 'http://192.168.0.28:9000'  // Replace XX with SonarQube node IP
+        SONAR_TOKEN = credentials(SONAR_TOKEN = credentials('sonarqube-token')      // Must match credential ID in Jenkins)
+        NEXUS_URL = 'http://192.168.0.27:8081'   // Replace YY with Nexus node IP
+        TOMCAT_URL = 'http://192.168.0.26:8080'  // Replace ZZ with Tomcat node IP
     }
     
     stages {
@@ -19,7 +19,7 @@ pipeline {
             steps {
                 echo '========== Cloning Repository =========='
                 git branch: 'main', 
-                    url: 'https://github.com/your-username/healthcare-app.git'
+                    url: 'https://github.com/UNIQUE0024/healthcare-cicd.git'
                     // ⚠️ Change to YOUR GitHub username and repo name!
             }
         }
