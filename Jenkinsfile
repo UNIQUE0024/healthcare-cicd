@@ -2,99 +2,132 @@ pipeline {
     agent any
     
     tools {
-        maven 'Maven3'
-        jdk 'Java21'
+        maven 'Maven-3.8.6'
+        jdk 'JDK-17'
     }
     
     environment {
-        TOMCAT_URL = 'http://192.168.0.16:8080'  // Replace with actual Node 4 IP
-        APP_NAME = 'healthcare'
+        // ⚠️ CHANGE THESE IP ADDRESSES!
+        SONAR_HOST = 'http://192.168.0.XX:9000'  // Replace XX with SonarQube node IP
+        SONAR_TOKEN = credentials('sonarqube-token')      // Must match credential ID in Jenkins
+        NEXUS_URL = 'http://192.168.0.YY:8081'   // Replace YY with Nexus node IP
+        TOMCAT_URL = 'http://192.168.0.ZZ:8080'  // Replace ZZ with Tomcat node IP
     }
     
     stages {
-        stage('Checkout') {
+        stage('1. Git Checkout') {
             steps {
-                echo '📥 Checking out code from GitHub...'
-                checkout scm
+                echo '========== Cloning Repository =========='
+                git branch: 'main', 
+                    url: 'https://github.com/your-username/healthcare-app.git'
+                    // ⚠️ Change to YOUR GitHub username and repo name!
             }
         }
         
-        stage('Build') {
+        stage('2. Maven Build') {
             steps {
-                echo '🔨 Building project with Maven...'
+                echo '========== Building with Maven =========='
                 sh 'mvn clean compile'
             }
         }
         
-        stage('Test') {
+        stage('3. Unit Tests') {
             steps {
-                echo '🧪 Running unit tests...'
+                echo '========== Running Unit Tests =========='
                 sh 'mvn test'
             }
-        }
-        
-        stage('Package') {
-            steps {
-                echo '📦 Creating WAR file...'
-                sh 'mvn package -DskipTests'
-            }
-        }
-        stage('Upload to Nexus') {
-            steps {
-                echo '
-📤
- Uploading artifact to Nexus...'
-                script {
-nexusArtifactUploader(
-                        nexusVersion: 'nexus3',
-                        protocol: 'http',
-                        nexusUrl: '192.168.0.17:8081',
-                        groupId: 'com.healthcare',
-                        version: "${env.BUILD_NUMBER}",
-                        repository: 'maven-releases',
-                        credentialsId: 'nexus-credentials',
-                        artifacts: [
-[
-                                artifactId: 'healthcare',
-                                classifier: '',
-                                file: 
-'target/healthcare.war',
-                                type: 
-'war'
-]
-]
-)
-}
-}
-}
-        stage('Deploy to Tomcat') {
-            steps {
-                echo '🚀 Deploying to Tomcat server...'
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'tomcat-credentials', 
-                                                     usernameVariable: 'TOMCAT_USER', 
-                                                     passwordVariable: 'TOMCAT_PASS')]) {
-                        sh """
-                            curl -v -u ${TOMCAT_USER}:${TOMCAT_PASS} \
-                            --upload-file target/${APP_NAME}.war \
-                            '${TOMCAT_URL}/manager/text/deploy?path=/${APP_NAME}&update=true'
-                        """
-                    }
+            post {
+                always {
+                    junit '**/target/surefire-reports/*.xml'
                 }
             }
         }
-    }
-    
-    post {
-        success {
-            echo '✅ Pipeline completed successfully!'
-            echo "🌐 Access your application at: ${TOMCAT_URL}/${APP_NAME}"
+        
+        stage('4. SonarQube Analysis') {
+            steps {
+                echo '========== Running SonarQube Analysis =========='
+                withSonarQubeEnv('SonarQube') {  // Must match name in Jenkins config
+                    sh """
+                        mvn sonar:sonar \
+                          -Dsonar.projectKey=healthcare-app \
+                          -Dsonar.host.url=${SONAR_HOST} \
+                          -Dsonar.login=${SONAR_TOKEN}
+                    """
+                }
+            }
         }
+        
+        stage('5. Quality Gate Check') {
+            steps {
+                echo '========== Waiting for Quality Gate =========='
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        
+        stage('6. Package WAR') {
+            steps {
+                echo '========== Creating WAR File =========='
+                sh 'mvn package -DskipTests'
+            }
+        }
+        
+        stage('7. Upload to Nexus') {
+            steps {
+                echo '========== Uploading to Nexus =========='
+                script {
+                    def pom = readMavenPom file: 'pom.xml'
+                    nexusArtifactUploader(
+                        nexusVersion: 'nexus3',
+                        protocol: 'http',
+                        nexusUrl: "${NEXUS_URL}",
+                        groupId: pom.groupId,
+                        version: pom.version,
+                        repository: 'maven-releases',
+                        credentialsId: 'nexus-credentials',  // Must match credential ID in Jenkins
+                        artifacts: [
+                            [artifactId: pom.artifactId,
+                             classifier: '',
+                             file: "target/${pom.artifactId}-${pom.version}.war",
+                             type: 'war']
+                        ]
+                    )
+                }
+            }
+        }
+        
+        stage('8. Deploy to Tomcat') {
+            steps {
+                echo '========== Deploying to Tomcat =========='
+                deploy adapters: [
+                    tomcat9(
+                        credentialsId: 'tomcat-deployer',  // Must match credential ID in Jenkins
+                        path: '',
+                        url: "${TOMCAT_URL}"
+                    )
+                ], 
+                contextPath: '/healthcare',
+                war: 'target/*.war'
+            }
+        }
+    }
         failure {
-            echo '❌ Pipeline failed! Check the logs above.'
+            echo '========== DEPLOYMENT FAILED! =========='
+            emailext(
+                subject: "FAILED: ${env.JOB_NAME} - Build #${env.BUILD_NUMBER}",
+                body: """
+                    Build Failed!
+                    
+                    Job: ${env.JOB_NAME}
+                    Build Number: ${env.BUILD_NUMBER}
+                    
+                    Check console output: ${env.BUILD_URL}
+                """,
+                to: 'your-email@example.com'  // ⚠️ Change to YOUR email!
+            )
         }
         always {
-            echo '🧹 Cleaning up workspace...'
             cleanWs()
         }
     }
